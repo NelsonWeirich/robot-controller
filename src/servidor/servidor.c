@@ -5,7 +5,7 @@
  *  + desenvolvimento das tarefas periodicas
  *  + variavel de condição
  *  + escalonamento de prioridade
- *  +
+ *  + colocar em biblioteca separada
  */
 
 #include <stdio.h>
@@ -22,56 +22,121 @@
 #include <netdb.h>
 #include <pthread.h>
 
+// #include "../lperiodic.h"
+
+struct periodic_info
+{
+	int sig;
+	sigset_t alarm_sig;
+};
+
+static int make_periodic (int unsigned period, struct periodic_info *info)
+{
+	static int next_sig;
+	int ret;
+	unsigned int ns;
+	unsigned int sec;
+	struct sigevent sigev;
+	timer_t timer_id;
+	struct itimerspec itval;
+
+	/* Initialise next_sig first time through. We can't use static
+	   initialisation because SIGRTMIN is a function call, not a constant */
+	if (next_sig == 0)
+		next_sig = SIGRTMIN;
+	/* Check that we have not run out of signals */
+	if (next_sig > SIGRTMAX)
+		return -1;
+	info->sig = next_sig;
+	next_sig++; // proteger a variavel
+	/* Create the signal mask that will be used in wait_period */
+	sigemptyset (&(info->alarm_sig));
+	sigaddset (&(info->alarm_sig), info->sig);
+
+	/* Create a timer that will generate the signal we have chosen */
+	sigev.sigev_notify = SIGEV_SIGNAL;
+	sigev.sigev_signo = info->sig;
+	sigev.sigev_value.sival_ptr = (void *) &timer_id;
+	ret = timer_create (CLOCK_MONOTONIC, &sigev, &timer_id);
+	if (ret == -1)
+		return ret;
+
+	/* Make the timer periodic */
+	sec = period/1000000;
+	ns = (period - (sec * 1000000)) * 1000;
+	itval.it_interval.tv_sec = sec;
+	itval.it_interval.tv_nsec = ns;
+	itval.it_value.tv_sec = sec;
+	itval.it_value.tv_nsec = ns;
+	ret = timer_settime (timer_id, 0, &itval, NULL);
+	return ret;
+}
+
+static void wait_period (struct periodic_info *info)
+{
+	int sig;
+	sigwait (&(info->alarm_sig), &sig);
+}
+
 #define BUFFER_LENGTH 1024
 
 // Variáveis globais
 int clientfd;
 int id = 0;
 
-static int position;
-static float velocidade, angulo;
+pthread_mutex_t mutex_angulo, mutex_position, mutex_speed = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t  cond_angulo, cond_position, cond_speed = PTHREAD_COND_INITIALIZER;
+
+static int position = 0;
+static float velocidade, angulo = 0.0;
 
 // tarefas periódicas
 static void *controle_velocidade(void *arg) {
     struct periodic_info info;
 
-    // TODO
-    // MUTEX
-    make_periodic(10000, &info); // 10 ms
+    make_periodic(10000000, &info); // 10 s
     while (1) {
-        // velocidade++;
-        printf("\tVelocidade: %f\n", velocidade);
-        wait_period(&info);
+        pthread_mutex_lock(&mutex_speed);
+            printf("\tVelocidade: %f\n", velocidade);
+            while (velocidade == 0) {
+                pthread_cond_wait(&cond_speed, &mutex_speed);
+            }
+            // TODO ADICIONAR ALGUMA AÇÃO SOBRE A VARIAVEL
+            wait_period(&info);
+        pthread_mutex_unlock(&mutex_speed);
     }
-    // MUTEX
 }
 
 static void *controle_posicao(void *arg) {
     struct periodic_info info;
 
-    // TODO
-    // MUTEX
-    make_periodic(8000, &info); //8ms
+    make_periodic(8000000, &info); //8s
     while (1) {
-        // position++;
-        printf("\tPosição: %d\n", position);
-        wait_period(10000, &info);
+        pthread_mutex_lock(&mutex_position);
+            printf("\tPosição: %d\n", position);
+            while (position == 0) {
+                pthread_cond_wait(&cond_position, &mutex_position);
+            }
+            // TODO ADICIONAR ALGUMA AÇÃO SOBRE A VARIAVEL
+            wait_period(&info);
+        pthread_mutex_unlock(&mutex_position);
     }
-    // MUTEX
 }
 
 static void *controle_equilibrio(void *arg) {
     struct periodic_info info;
-    
-    // TODO
-    // MUTEX
-    make_periodic(5000, &info); //5ms
+
+    make_periodic(5000000, &info); //5s
     while (1) {
-        // angulo++;
-        printf("Ângulo de equilíbrio: %f\n", angulo);
-        wait_period(&info);
+        pthread_mutex_lock(&mutex_angulo);
+            printf("\tÂngulo: %f\n", angulo);
+            while (angulo == 0 ) {
+                pthread_cond_wait(&cond_angulo, &mutex_angulo);
+            }
+            // TODO ADICIONAR ALGUMA AÇÃO SOBRE A VARIAVEL
+            wait_period(&info);
+        pthread_mutex_unlock(&mutex_angulo);
     }
-    // MUTEX
 }
 
 void *client(void *arg) {
@@ -96,42 +161,57 @@ void *client(void *arg) {
                 break;
             }
 
-            // analisa leitura
+            // RIGHT
             if (strcmp(buffer, "right\n") == 0) {
                 write(clientfd, "direita\n", 80);
                 printf("Executando operação do cliente.\n");
-                // TODO
-                // MUTEX
-                //execução dos comandos
-                // MUTEX
+                pthread_mutex_lock(&mutex_angulo);
+                    // TODO
+                    //execução dos comandos
+                    angulo--;
+                    pthread_cond_signal(&cond_angulo);
+                pthread_mutex_unlock(&mutex_angulo);
+            // LEFT
             } else if (strcmp(buffer, "left\n") == 0) {
                 write(clientfd, "esquerda\n", 80);
                 printf("Executando operação do cliente.\n");
-                // TODO
-                // MUTEX
-                //execução dos comandos
-                // MUTEX
+                pthread_mutex_lock(&mutex_angulo);
+                    // TODO
+                    //execução dos comandos
+                    angulo++;
+                    pthread_cond_signal(&cond_angulo);
+                pthread_mutex_unlock(&mutex_angulo);
+            // FORWARD
             } else if (strcmp(buffer, "forward\n") == 0) {
                 write(clientfd, "para frente\n", 80);
                 printf("Executando operação do cliente.\n");
-                // TODO
-                // MUTEX
-                //execução dos comandos
-                // MUTEX
+                pthread_mutex_lock(&mutex_position);
+                    // TODO
+                    //execução dos comandos
+                    position++;
+                    pthread_cond_signal(&cond_position);
+                pthread_mutex_unlock(&mutex_position);
+            // BACK
             } else if (strcmp(buffer, "back\n") == 0) {
                 write(clientfd, "voltou\n", 80);
                 printf("Executando operação do cliente.\n");
-                // TODO
-                // MUTEX
-                //execução dos comandos
-                // MUTEX
+                pthread_mutex_lock(&mutex_position);
+                    // TODO
+                    //execução dos comandos
+                    position--;
+                    pthread_cond_signal(&cond_position);
+                pthread_mutex_unlock(&mutex_position);
+                // STOP
             } else if (strcmp(buffer, "stop\n") == 0) {
                 write(clientfd, "parou\n", 80);
                 printf("Executando operação do cliente.\n");
-                // TODO
-                // MUTEX
-                //execução dos comandos
-                // MUTEX
+                pthread_mutex_lock(&mutex_speed);
+                    // TODO
+                    //execução dos comandos
+                    velocidade = 0;
+                    pthread_cond_signal(&cond_speed);
+                pthread_mutex_unlock(&mutex_speed);
+            // EXIT
             } else if (strcmp(buffer, "exit\n") == 0) {
                 printf("Encerrando sessão.\n");
                 printf("------------------\n");

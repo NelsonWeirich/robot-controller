@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-pthread
+CFLAGS=-pthread -lrt
 DEPS =
 EXEC = servidor
 OBJ = servidor.o
