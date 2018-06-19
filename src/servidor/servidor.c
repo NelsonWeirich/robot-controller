@@ -2,13 +2,17 @@
 /** TODO
  *  + adicionar execução das tarefas
  *  + melhorar tratamento de mensagem recebida
- *  + tratamento de finalização
  *  + desenvolvimento das tarefas periodicas
+ *  + variavel de condição
+ *  + escalonamento de prioridade
+ *  +
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
+#include <time.h>
 #include <string.h>
 #include <errno.h>
 
@@ -24,25 +28,49 @@
 int clientfd;
 int id = 0;
 
-char *position;
-float velocidade, angulo;
+static int position;
+static float velocidade, angulo;
 
 // tarefas periódicas
-void *controle_velocidade(void *arg) {
+static void *controle_velocidade(void *arg) {
+    struct periodic_info info;
+
+    // TODO
     // MUTEX
-    printf("Velocidade: %f\n", velocidade);
+    make_periodic(10000, &info); // 10 ms
+    while (1) {
+        // velocidade++;
+        printf("\tVelocidade: %f\n", velocidade);
+        wait_period(&info);
+    }
     // MUTEX
 }
 
-void *controle_posicao(void *arg) {
+static void *controle_posicao(void *arg) {
+    struct periodic_info info;
+
+    // TODO
     // MUTEX
-    printf("Posição: %s\n", position);
+    make_periodic(8000, &info); //8ms
+    while (1) {
+        // position++;
+        printf("\tPosição: %d\n", position);
+        wait_period(10000, &info);
+    }
     // MUTEX
 }
 
-void *controle_equilibrio(void *arg) {
+static void *controle_equilibrio(void *arg) {
+    struct periodic_info info;
+    
+    // TODO
     // MUTEX
-    printf("Ângulo de equilíbrio: %f\n", angulo);
+    make_periodic(5000, &info); //5ms
+    while (1) {
+        // angulo++;
+        printf("Ângulo de equilíbrio: %f\n", angulo);
+        wait_period(&info);
+    }
     // MUTEX
 }
 
@@ -54,6 +82,7 @@ void *client(void *arg) {
     strcpy(buffer, "Olá. Estou vivo e posso me mover! Diga os comandos.\n\0");
 
     if (send(clientfd, buffer, strlen(buffer), 0)) {
+        fprintf(stdout, "------------------\n");
         fprintf(stdout, "Cliente conectado.\nAguardando resposta ...\n");
 
         // comunicação enquanto nao enviar comando exit
@@ -62,48 +91,64 @@ void *client(void *arg) {
 
             len_msg = read(clientfd, buffer, 80);
             if (len_msg > 0) {
-                // buffer[len_msg-1] = '\0'; // remover \n lido
                 printf("Cliente: %s", buffer);
+            } else {
+                break;
             }
 
             // analisa leitura
             if (strcmp(buffer, "right\n") == 0) {
                 write(clientfd, "direita\n", 80);
                 printf("Executando operação do cliente.\n");
+                // TODO
                 // MUTEX
                 //execução dos comandos
                 // MUTEX
             } else if (strcmp(buffer, "left\n") == 0) {
                 write(clientfd, "esquerda\n", 80);
                 printf("Executando operação do cliente.\n");
+                // TODO
                 // MUTEX
                 //execução dos comandos
                 // MUTEX
             } else if (strcmp(buffer, "forward\n") == 0) {
                 write(clientfd, "para frente\n", 80);
                 printf("Executando operação do cliente.\n");
+                // TODO
                 // MUTEX
                 //execução dos comandos
                 // MUTEX
             } else if (strcmp(buffer, "back\n") == 0) {
                 write(clientfd, "voltou\n", 80);
                 printf("Executando operação do cliente.\n");
+                // TODO
                 // MUTEX
                 //execução dos comandos
                 // MUTEX
             } else if (strcmp(buffer, "stop\n") == 0) {
                 write(clientfd, "parou\n", 80);
                 printf("Executando operação do cliente.\n");
+                // TODO
                 // MUTEX
                 //execução dos comandos
                 // MUTEX
             } else if (strcmp(buffer, "exit\n") == 0) {
                 printf("Encerrando sessão.\n");
                 printf("------------------\n");
+                // TODO
                 // MUTEX
                 //execução dos comandos
                 // MUTEX
                 write(clientfd, "exit\n", 8);
+            } else if (strcmp(buffer, "help\n") == 0) {
+                write(clientfd, "\nright   - virar para direita \
+                                 \nleft    - virar para esquerda \
+                                 \nforward - avançar \
+                                 \nback    - recuar \
+                                 \nstop    - parar\n", 256);
+            } else { // comando inexistente
+                write(clientfd, "Comando inválido.\n \
+                                 Tente help para saber mais", 80);
             }
         } while(strcmp(buffer, "exit"));
     }
@@ -115,6 +160,10 @@ int main(int argc, char const *argv[]) {
     int serverfd, portno;
     char buffer[BUFFER_LENGTH];
     pthread_t t;
+    pthread_t tarefa_1;
+    pthread_t tarefa_2;
+    pthread_t tarefa_3;
+    sigset_t alarm_signal;
 
     // verificação e validação dos paramentros de entrada
     if (argc < 2) {
@@ -162,12 +211,23 @@ int main(int argc, char const *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // listen - esperando o cliente
+    // listen
     if (listen(serverfd, 1) < 0) {
         perror("ERRO. Falha ao fazer listen");
         return EXIT_FAILURE;
     }
     fprintf(stdout, "Listen da porta: %d\n", portno);
+
+    sigemptyset(&alarm_signal);
+
+    for (size_t i = SIGRTMIN; i <= SIGRTMAX; i++)
+        sigaddset(&alarm_signal, i);
+
+    sigprocmask(SIG_BLOCK, &alarm_signal, NULL);
+
+    pthread_create(&tarefa_1, NULL, controle_velocidade, NULL);
+    pthread_create(&tarefa_2, NULL, controle_posicao, NULL);
+    pthread_create(&tarefa_3, NULL, controle_equilibrio, NULL);
 
     while (1) {
         client_len = sizeof(client_addr);
