@@ -32,10 +32,10 @@ void *conection(void *arg) {
             exit(EXIT_FAILURE);
         }
 
-        // recv(sockfd, buffer_in, BUFFER_LENGTH, 0);
-        // printf("\tServidor: %s\n", buffer_in);
+        recv(sockfd, buffer_in, BUFFER_LENGTH, 0);
+        printf("\tServidor: %s\n", buffer_in);
 
-        if (strcmp(buffer_in, "exit") == 0) {
+        if (strcmp(buffer_in, "exit\n") == 0) { // servidor confirma saida
             break;
         }
     }

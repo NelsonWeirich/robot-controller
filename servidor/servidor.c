@@ -62,42 +62,48 @@ void *client(void *arg) {
 
             len_msg = read(clientfd, buffer, 80);
             if (len_msg > 0) {
-                buffer[len_msg-1] = '\0'; // remover \n lido
+                // buffer[len_msg-1] = '\0'; // remover \n lido
                 printf("Cliente: %s", buffer);
             }
 
             // analisa leitura
-            if (strcmp(buffer, "right") == 0) {
+            if (strcmp(buffer, "right\n") == 0) {
                 write(clientfd, "direita\n", 80);
+                printf("Executando operação do cliente.\n");
                 // MUTEX
                 //execução dos comandos
                 // MUTEX
-            } else if (strcmp(buffer, "left") == 0) {
+            } else if (strcmp(buffer, "left\n") == 0) {
                 write(clientfd, "esquerda\n", 80);
+                printf("Executando operação do cliente.\n");
                 // MUTEX
                 //execução dos comandos
                 // MUTEX
-            } else if (strcmp(buffer, "forward") == 0) {
+            } else if (strcmp(buffer, "forward\n") == 0) {
                 write(clientfd, "para frente\n", 80);
+                printf("Executando operação do cliente.\n");
                 // MUTEX
                 //execução dos comandos
                 // MUTEX
-            } else if (strcmp(buffer, "back") == 0) {
+            } else if (strcmp(buffer, "back\n") == 0) {
                 write(clientfd, "voltou\n", 80);
+                printf("Executando operação do cliente.\n");
                 // MUTEX
                 //execução dos comandos
                 // MUTEX
-            } else if (strcmp(buffer, "stop") == 0) {
+            } else if (strcmp(buffer, "stop\n") == 0) {
                 write(clientfd, "parou\n", 80);
+                printf("Executando operação do cliente.\n");
                 // MUTEX
                 //execução dos comandos
                 // MUTEX
-            } else if (strcmp(buffer, "exit") == 0) {
-                write(clientfd, "Encerrando sessão.\n", 80);
+            } else if (strcmp(buffer, "exit\n") == 0) {
+                printf("Encerrando sessão.\n");
+                printf("------------------\n");
                 // MUTEX
                 //execução dos comandos
                 // MUTEX
-                write(clientfd, "exit", 4);
+                write(clientfd, "exit\n", 8);
             }
         } while(strcmp(buffer, "exit"));
     }
@@ -173,7 +179,7 @@ int main(int argc, char const *argv[]) {
         }
         pthread_create(&t, NULL, client, (void *)id);
     }
-    
+
     pthread_join(t, NULL);
 
     close(clientfd);
