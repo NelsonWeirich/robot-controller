@@ -1,12 +1,4 @@
 
-/** TODO
- *  + adicionar execução das tarefas
- *  + melhorar tratamento de mensagem recebida
- *  + desenvolvimento das tarefas periodicas
- *  + variavel de condição
- *  + escalonamento de prioridade
- *  + colocar em biblioteca separada
- */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,61 +14,7 @@
 #include <netdb.h>
 #include <pthread.h>
 
-// #include "../lperiodic.h"
-
-struct periodic_info
-{
-	int sig;
-	sigset_t alarm_sig;
-};
-
-static int make_periodic (int unsigned period, struct periodic_info *info)
-{
-	static int next_sig;
-	int ret;
-	unsigned int ns;
-	unsigned int sec;
-	struct sigevent sigev;
-	timer_t timer_id;
-	struct itimerspec itval;
-
-	/* Initialise next_sig first time through. We can't use static
-	   initialisation because SIGRTMIN is a function call, not a constant */
-	if (next_sig == 0)
-		next_sig = SIGRTMIN;
-	/* Check that we have not run out of signals */
-	if (next_sig > SIGRTMAX)
-		return -1;
-	info->sig = next_sig;
-	next_sig++; // proteger a variavel
-	/* Create the signal mask that will be used in wait_period */
-	sigemptyset (&(info->alarm_sig));
-	sigaddset (&(info->alarm_sig), info->sig);
-
-	/* Create a timer that will generate the signal we have chosen */
-	sigev.sigev_notify = SIGEV_SIGNAL;
-	sigev.sigev_signo = info->sig;
-	sigev.sigev_value.sival_ptr = (void *) &timer_id;
-	ret = timer_create (CLOCK_MONOTONIC, &sigev, &timer_id);
-	if (ret == -1)
-		return ret;
-
-	/* Make the timer periodic */
-	sec = period/1000000;
-	ns = (period - (sec * 1000000)) * 1000;
-	itval.it_interval.tv_sec = sec;
-	itval.it_interval.tv_nsec = ns;
-	itval.it_value.tv_sec = sec;
-	itval.it_value.tv_nsec = ns;
-	ret = timer_settime (timer_id, 0, &itval, NULL);
-	return ret;
-}
-
-static void wait_period (struct periodic_info *info)
-{
-	int sig;
-	sigwait (&(info->alarm_sig), &sig);
-}
+#include "../include/lperiodic.h"
 
 #define BUFFER_LENGTH 1024
 
@@ -98,11 +36,6 @@ static void *controle_velocidade(void *arg) {
     while (1) {
         pthread_mutex_lock(&mutex_speed);
             printf("\tVelocidade: %f\n", velocidade);
-            while (velocidade == 0) {
-                pthread_cond_wait(&cond_speed, &mutex_speed);
-            }
-            // TODO ADICIONAR ALGUMA AÇÃO SOBRE A VARIAVEL
-            wait_period(&info);
         pthread_mutex_unlock(&mutex_speed);
     }
 }
@@ -114,11 +47,6 @@ static void *controle_posicao(void *arg) {
     while (1) {
         pthread_mutex_lock(&mutex_position);
             printf("\tPosição: %d\n", position);
-            while (position == 0) {
-                pthread_cond_wait(&cond_position, &mutex_position);
-            }
-            // TODO ADICIONAR ALGUMA AÇÃO SOBRE A VARIAVEL
-            wait_period(&info);
         pthread_mutex_unlock(&mutex_position);
     }
 }
@@ -130,11 +58,6 @@ static void *controle_equilibrio(void *arg) {
     while (1) {
         pthread_mutex_lock(&mutex_angulo);
             printf("\tÂngulo: %f\n", angulo);
-            while (angulo == 0 ) {
-                pthread_cond_wait(&cond_angulo, &mutex_angulo);
-            }
-            // TODO ADICIONAR ALGUMA AÇÃO SOBRE A VARIAVEL
-            wait_period(&info);
         pthread_mutex_unlock(&mutex_angulo);
     }
 }
@@ -166,47 +89,38 @@ void *client(void *arg) {
                 write(clientfd, "direita\n", 80);
                 printf("Executando operação do cliente.\n");
                 pthread_mutex_lock(&mutex_angulo);
-                    // TODO
                     //execução dos comandos
                     angulo--;
-                    pthread_cond_signal(&cond_angulo);
                 pthread_mutex_unlock(&mutex_angulo);
             // LEFT
             } else if (strcmp(buffer, "left\n") == 0) {
                 write(clientfd, "esquerda\n", 80);
                 printf("Executando operação do cliente.\n");
                 pthread_mutex_lock(&mutex_angulo);
-                    // TODO
                     //execução dos comandos
                     angulo++;
-                    pthread_cond_signal(&cond_angulo);
                 pthread_mutex_unlock(&mutex_angulo);
             // FORWARD
             } else if (strcmp(buffer, "forward\n") == 0) {
                 write(clientfd, "para frente\n", 80);
                 printf("Executando operação do cliente.\n");
                 pthread_mutex_lock(&mutex_position);
-                    // TODO
                     //execução dos comandos
                     position++;
-                    pthread_cond_signal(&cond_position);
                 pthread_mutex_unlock(&mutex_position);
             // BACK
             } else if (strcmp(buffer, "back\n") == 0) {
                 write(clientfd, "voltou\n", 80);
                 printf("Executando operação do cliente.\n");
                 pthread_mutex_lock(&mutex_position);
-                    // TODO
                     //execução dos comandos
                     position--;
-                    pthread_cond_signal(&cond_position);
                 pthread_mutex_unlock(&mutex_position);
                 // STOP
             } else if (strcmp(buffer, "stop\n") == 0) {
                 write(clientfd, "parou\n", 80);
                 printf("Executando operação do cliente.\n");
                 pthread_mutex_lock(&mutex_speed);
-                    // TODO
                     //execução dos comandos
                     velocidade = 0;
                     pthread_cond_signal(&cond_speed);
@@ -215,10 +129,6 @@ void *client(void *arg) {
             } else if (strcmp(buffer, "exit\n") == 0) {
                 printf("Encerrando sessão.\n");
                 printf("------------------\n");
-                // TODO
-                // MUTEX
-                //execução dos comandos
-                // MUTEX
                 write(clientfd, "exit\n", 8);
             } else if (strcmp(buffer, "help\n") == 0) {
                 write(clientfd, "\nright   - virar para direita \

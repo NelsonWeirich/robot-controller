@@ -1,4 +1,4 @@
-#include <lperiodic.h>
+#include "../include/lperiodic.h"
 
 static int make_periodic (int unsigned period, struct periodic_info *info)
 {

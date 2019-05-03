@@ -42,12 +42,11 @@ void *conection(void *arg) {
 }
 
 int main(int argc, char const *argv[]) {
-    int portno, n;
+    int portno;
     struct sockaddr_in server_addr;
     pthread_t t;
 
     int len = sizeof(server_addr);
-    int slen;
 
     char buffer[BUFFER_LENGTH];
     if (argc < 3) {
