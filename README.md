@@ -70,7 +70,7 @@ This project is archived. For now, it will no longer receive contributions.
 
 ## Credits
 
-Nelson Weirich - <https://github.com/NelsonWeirich>
+**Nelson Weirich** <https://github.com/NelsonWeirich>
 
 ## Licence
 
